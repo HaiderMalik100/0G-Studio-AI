@@ -21,7 +21,7 @@ const app = express();
 app.use(cors({
   origin: [
     "http://localhost:5173",
-    "https://your-frontend-domain.com"
+    "https://og-studio-ai.app/"
   ],
   credentials: true
 }));
