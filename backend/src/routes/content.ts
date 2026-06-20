@@ -9,12 +9,15 @@ const router = Router();
 
 router.post('/generate', requireAuth, async (req: AuthRequest, res) => {
   const user = req.user!.address;
+
   try {
     const { prompt, type, chatId } = req.body;
-    if (!prompt ||!type ||!chatId) return res.status(400).json({ error: 'Missing fields' });
 
-    // 1. Generate content - this must succeed
+    if (!prompt || !type || !chatId)
+      return res.status(400).json({ error: 'Missing fields' });
+
     const result = await generateWithGroq(prompt, type);
+
     const data = {
       id: uuid(),
       chatId,
@@ -27,28 +30,19 @@ router.post('/generate', requireAuth, async (req: AuthRequest, res) => {
       createdAt: Date.now()
     };
 
-    // 2. Send to frontend IMMEDIATELY - don't wait for 0G
     res.json({
-     ...data,
-      hash: null, // Will be filled later
+      ...data,
+      hash: null,
+      txHash: null,
       storage: 'PENDING_0G',
       status: 'GENERATED'
     });
 
-    // 2.5 Optimistically save a pending manifest entry and snapshot data so the item appears in library immediately
-    try {
-      await savePendingEntry(user, data.id);
-      await savePendingData(user, data);
-    } catch (e) {
-      console.warn('[0G] savePendingEntry/savePendingData failed', e);
-    }
-
-    // 3. Upload to 0G in background queue - never blocks response
     addTo0GQueue(data);
 
   } catch (err: any) {
     console.error('GENERATE ERROR:', err);
-    return res.status(500).json({ error: 'Failed', detail: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
