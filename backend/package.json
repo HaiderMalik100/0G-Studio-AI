@@ -2,7 +2,8 @@
   "name": "0g-backend",
   "scripts": {
     "dev": "nodemon --watch src --exec \"npm run build && node dist/server.js\"",
-    "build": "tsc"
+    "build": "tsc",
+    "start": "node dist/server.js"
   },
   "dependencies": {
     "@0gfoundation/0g-storage-ts-sdk": "^1.2.10",
