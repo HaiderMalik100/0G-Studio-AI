@@ -49,54 +49,58 @@ const getIndexer = async () => {
 
 const getTmpPath = (name: string) => path.join(os.tmpdir(), name);
 
-export const uploadTo0G = async (data: ContentData): Promise<{ rootHash: string; txHash: string }> => {
+export const uploadTo0G = async (data: ContentData) => {
   await loadSDK();
-  console.log(`[0G UPLOAD START] ${data.id}`);
 
   const tmpPath = getTmpPath(`${data.id}.json`);
   fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2));
 
-  let file: any = null;
+  let file: any;
+
   try {
     file = await ZgFile.fromFilePath(tmpPath);
-    const [tree, treeErr] = await file.merkleTree();
-    if (treeErr !== null) throw new Error(`Merkle tree error: ${treeErr}`);
 
     const indexer = await getIndexer();
     const signer = getSigner();
-    const [tx, uploadErr] = await indexer.upload(file, getRpcUrl(), signer);
 
-    if (uploadErr !== null) {
-      console.error('[0G] uploadErr:', uploadErr);
-      throw new Error(`Upload error: ${uploadErr}`);
+    const [tx, err] = await indexer.upload(file, getRpcUrl(), signer);
+
+    if (err) {
+      console.error("[0G] upload error:", err);
+      throw new Error(err);
     }
 
-    await file.close();
+    // ✅ SUPER ROBUST ROOT HASH EXTRACTION
+    const rootHash =
+      tx?.rootHash ||
+      tx?.data?.rootHash ||
+      tx?.output?.rootHash ||
+      tx?.result?.rootHash ||
+      (Array.isArray(tx?.rootHashes) ? tx.rootHashes[0] : null) ||
+      (Array.isArray(tx) ? tx?.[0]?.rootHash : null);
 
-    // Robust rootHash extraction with multiple fallbacks
-    let rootHash: string | undefined = undefined;
-    if (tx) {
-      if (typeof tx === 'object' && tx.rootHash) rootHash = tx.rootHash;
-      else if (tx.rootHashes && Array.isArray(tx.rootHashes) && tx.rootHashes.length) rootHash = tx.rootHashes[0];
-      else if ((tx as any).hash) rootHash = (tx as any).hash;
-      else if (Array.isArray(tx) && tx[0] && tx[0].rootHash) rootHash = tx[0].rootHash;
-    }
+    const txHash =
+      tx?.txHash ||
+      tx?.transactionHash ||
+      tx?.hash ||
+      tx?.output?.txHash ||
+      tx?.data?.txHash ||
+      "";
 
     if (!rootHash) {
-      console.error('[0G] upload response missing rootHash:', tx);
-      throw new Error('0G upload returned no rootHash');
+      console.error("❌ FULL 0G RESPONSE:", tx);
+      throw new Error("Missing rootHash from 0G response");
     }
 
-    const txHash = (tx && (tx.txHash || (tx as any).hash || (tx as any).transactionHash)) || '';
-
-    console.log(`[0G] TX: https://chainscan-galileo.0g.ai/tx/${txHash}`);
-    console.log(`[0G] File: https://storagescan-galileo.0g.ai/#/data/${rootHash}`);
+    console.log("[0G SUCCESS]");
+    console.log("rootHash:", rootHash);
+    console.log("txHash:", txHash);
 
     return { rootHash, txHash };
 
-  } catch (e: any) {
-    console.error(`[0G ERROR]`, e);
-    throw new Error(`0G upload failed: ${e.message || e}`);
+  } catch (e) {
+    console.error("[0G UPLOAD FAILED]", e);
+    throw e;
   } finally {
     if (file) await file.close().catch(() => {});
     if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
