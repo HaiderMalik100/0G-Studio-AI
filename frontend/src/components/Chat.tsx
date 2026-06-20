@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { generateContent } from "../services/api";
 import { ContentType, ContentData } from "../types";
-import { Copy, Check, Sparkles, ExternalLink, Clock, Cloud, CloudOff } from "lucide-react";
+import { Copy, Check, Sparkles, ExternalLink, Clock,CloudOff } from "lucide-react";
 import "./chat.css";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -98,7 +98,11 @@ export default function Chat({ onNew, externalMessages, chatId }: ChatProps) {
     { value: "marketing", label: "Marketing" },
   ];
 
-  const renderStorageBadge = (storage?: string, hash?: string | null, txHash?: string | null) => {
+  const renderStorageBadge = (
+  storage?: string,
+  _hash?: string | null,
+  txHash?: string | null
+) => {
   if (storage === '0G_GALILEO' && txHash) {
     return (
       <a

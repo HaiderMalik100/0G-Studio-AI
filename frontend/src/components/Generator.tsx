@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { generateContent } from "../services/api";
 import { ContentData, ContentType } from "../types";
-
+import { v4 as uuidv4 } from "uuid";
 export default function Generator({
   onNew,
 }: {
@@ -16,8 +16,11 @@ export default function Generator({
     setLoading(true);
 
     try {
-      const { data } = await generateContent(prompt, type);
-      onNew(data);
+const { data } = await generateContent(
+  prompt,
+  type,
+  uuidv4()
+);      onNew(data);
       setPrompt("");
     } finally {
       setLoading(false);
