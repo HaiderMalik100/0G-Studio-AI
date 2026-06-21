@@ -1,65 +1,61 @@
-import { uploadTo0G, saveUserHash } from "./ogStorage";
+import { uploadTo0G, saveUserHash, savePendingEntry, savePendingData } from './ogStorage';
+import { ContentData } from '../types';
 
-const queue: any[] = [];
-let processing = false;
+interface QueueItem extends ContentData {
+  retries: number;
+}
 
+const queue: QueueItem[] = [];
+let isProcessing = false;
 const MAX_RETRIES = 3;
 
-export const addTo0GQueue = (data: any) => {
-  console.log("[0G QUEUE] Added:", data.id);
+export const addTo0GQueue = (data: ContentData) => {
+  console.log(`[0G QUEUE] Added item ${data.id} to queue`);
 
-  queue.push({ ...data, retries: 0 });
-  processQueue();
+  // Save pending state so UI can show it immediately
+  savePendingEntry(data.userAddress, data.id);
+  savePendingData(data.userAddress, data);
+
+  queue.push({...data, retries: 0 });
+  if (!isProcessing) processQueue();
 };
 
-const sleep = (ms: number) =>
-  new Promise((r) => setTimeout(r, ms));
-
 const processQueue = async () => {
-  if (processing) return;
-  processing = true;
+  if (isProcessing) return;
+  isProcessing = true;
 
   while (queue.length > 0) {
     const item = queue[0];
 
     try {
-      console.log(
-        `[0G QUEUE] Uploading ${item.id} attempt ${item.retries + 1}`
-      );
+      console.log(`[0G QUEUE] Uploading ${item.id}, attempt ${item.retries + 1}`);
+      const { rootHash, txHash } = await uploadTo0G(item);
 
-      const result = await uploadTo0G(item);
-
-      if (!result?.rootHash) {
-        throw new Error("No rootHash returned");
+      if (!rootHash) {
+        throw new Error('uploadTo0G returned empty rootHash');
       }
 
-      console.log("[0G QUEUE] SUCCESS:", result);
+      await saveUserHash(item.userAddress, rootHash, txHash);
 
-      await saveUserHash(
-        item.userAddress,
-        result.rootHash,
-        result.txHash || null
-      );
-
-      queue.shift();
+      console.log(`[0G QUEUE] SUCCESS: ${item.id} -> tx: ${txHash} root: ${rootHash}`);
+      queue.shift(); // Only remove on success
 
     } catch (err: any) {
-      console.error("[0G QUEUE ERROR]", item.id, err.message);
-
+      console.error(`[0G QUEUE] FAILED ${item.id}:`, err.message);
       item.retries++;
 
-      queue.shift();
+      queue.shift(); // Remove failed attempt
 
-      if (item.retries < MAX_RETRIES) {
-        console.log(`[0G RETRY] ${item.id} -> ${item.retries}`);
-
-        queue.push(item);
-        await sleep(5000 * item.retries);
+      if (item.retries >= MAX_RETRIES) {
+        console.error(`[0G QUEUE] DROPPED ${item.id} after ${MAX_RETRIES} retries`);
       } else {
-        console.error("[0G DROPPED]", item.id);
+        console.log(`[0G QUEUE] RETRY ${item.id} -> ${item.retries}`);
+        queue.push(item); // Re-queue at end
+        await new Promise(r => setTimeout(r, 5000 * item.retries)); // Exponential backoff
       }
     }
   }
 
-  processing = false;
+  isProcessing = false;
+  console.log(`[0G QUEUE] Queue empty`);
 };

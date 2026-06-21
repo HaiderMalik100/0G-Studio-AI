@@ -2,25 +2,23 @@ import { Router } from 'express';
 import { v4 as uuid } from 'uuid';
 import { requireAuth, type AuthRequest } from '../middleware/auth';
 import { generateWithGroq } from '../services/groq';
-import { addTo0GQueue } from '../services/ogQueue'; // Use queue instead of direct upload
-import { getUserHashes, downloadFrom0G, savePendingEntry, savePendingData, readPendingData } from '../services/ogStorage';
+import { addTo0GQueue } from '../services/ogQueue';
+import { getUserHashes, downloadFrom0G, readPendingData } from '../services/ogStorage';
+import { ContentData } from '../types';
 
 const router = Router();
 
 router.post('/generate', requireAuth, async (req: AuthRequest, res) => {
   const user = req.user!.address;
-
   try {
     const { prompt, type, chatId } = req.body;
+    if (!prompt ||!type) return res.status(400).json({ error: 'Missing prompt or type' });
 
-    if (!prompt || !type || !chatId)
-      return res.status(400).json({ error: 'Missing fields' });
-
+    // 1. Generate content - must succeed or we fail fast
     const result = await generateWithGroq(prompt, type);
-
-    const data = {
+    const data: ContentData = {
       id: uuid(),
-      chatId,
+      chatId: chatId || uuid(), // Handle if frontend doesn't send chatId
       userAddress: user,
       type,
       prompt,
@@ -30,37 +28,39 @@ router.post('/generate', requireAuth, async (req: AuthRequest, res) => {
       createdAt: Date.now()
     };
 
+    // 2. Send to frontend IMMEDIATELY - don't wait for 0G
     res.json({
-      ...data,
+     ...data,
       hash: null,
       txHash: null,
       storage: 'PENDING_0G',
       status: 'GENERATED'
     });
 
+    // 3. Upload to 0G in background - never blocks response
     addTo0GQueue(data);
 
   } catch (err: any) {
     console.error('GENERATE ERROR:', err);
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Generation failed', detail: err.message });
   }
 });
 
 router.get('/library', requireAuth, async (req: AuthRequest, res) => {
   const user = req.user!.address;
   try {
-    const hashes = await getUserHashes(user); // Now returns { rootHash, txHash }[]
+    const hashes = await getUserHashes(user);
     const data = await Promise.all(
       hashes.map(async ({ rootHash, txHash }) => {
         try {
-          if (typeof rootHash === 'string' && rootHash.startsWith('PENDING:')) {
+          // Handle pending entries
+          if (rootHash.startsWith('PENDING:')) {
             const pendingId = rootHash.split(':')[1];
-            const pending = await readPendingData(user, pendingId);
-            if (pending) {
-              return { ...pending, hash: null, txHash: null, storage: 'PENDING_0G' as const, status: 'PENDING' };
+            const pendingData = await readPendingData(user, pendingId);
+            if (pendingData) {
+              return {...pendingData, hash: null, txHash: null, storage: 'PENDING_0G' as const };
             }
-            // fallback placeholder
-            return { id: pendingId, chatId: null, userAddress: user, type: 'unknown', content: '', wordCount: 0, qualityScore: 0, createdAt: Date.now(), hash: null, txHash: null, storage: 'PENDING_0G' as const, status: 'PENDING' };
+            return null;
           }
 
           const item = await downloadFrom0G(rootHash);
@@ -76,6 +76,5 @@ router.get('/library', requireAuth, async (req: AuthRequest, res) => {
     return res.status(500).json({ error: 'Library failed', detail: err.message });
   }
 });
-
 
 export default router;

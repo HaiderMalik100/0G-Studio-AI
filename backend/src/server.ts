@@ -1,3 +1,11 @@
+// server.ts - MUST BE LINE 1
+const _origStringify = JSON.stringify;
+JSON.stringify = function(val: any, replacer?: any, space?: any) {
+  const safe = (k: string, v: any) => typeof v === 'bigint' ? v.toString() : v;
+  return _origStringify(val, safe, space);
+};
+
+
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -6,6 +14,7 @@ import authRoutes from "./routes/auth";
 import contentRoutes from "./routes/content";
 
 dotenv.config();
+
 
 const app = express();
 

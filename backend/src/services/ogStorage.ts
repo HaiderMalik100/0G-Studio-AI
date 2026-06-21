@@ -8,11 +8,11 @@ let ZgFile: any, Indexer: any;
 
 const loadSDK = async () => {
   if (!ZgFile) {
-    console.log('[0G] Loading 0G SDK...');
+    console.log(' Loading 0G SDK...');
     const sdk = await import('@0gfoundation/0g-storage-ts-sdk');
     ZgFile = sdk.ZgFile;
     Indexer = sdk.Indexer;
-    console.log('[0G] SDK loaded');
+    console.log(' SDK loaded');
   }
 };
 
@@ -47,66 +47,62 @@ const getIndexer = async () => {
   return new Indexer(getIndexerRpc());
 };
 
+// Use /tmp for Hostinger + local. It's ephemeral but fine for uploads.
 const getTmpPath = (name: string) => path.join(os.tmpdir(), name);
 
-export const uploadTo0G = async (data: ContentData) => {
+export const uploadTo0G = async (data: ContentData): Promise<{ rootHash: string; txHash: string }> => {
   await loadSDK();
+  console.log(`[0G UPLOAD START] ${data.id}`);
 
   const tmpPath = getTmpPath(`${data.id}.json`);
   fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2));
 
-  let file: any;
-
+  let file: any = null;
   try {
     file = await ZgFile.fromFilePath(tmpPath);
+
+    // CRITICAL: SDK returns [result, error] tuple. Don't remove this.
+    const [tree, treeErr] = await file.merkleTree();
+    if (treeErr!== null) throw new Error(`Merkle tree error: ${treeErr}`);
 
     const indexer = await getIndexer();
     const signer = getSigner();
 
-    const [tx, err] = await indexer.upload(file, getRpcUrl(), signer);
+    // CRITICAL: SDK returns [tx, uploadErr] tuple
+    const [tx, uploadErr] = await indexer.upload(file, getRpcUrl(), signer);
+    if (uploadErr!== null) throw new Error(`Upload error: ${uploadErr}`);
 
-    if (err) {
-      console.error("[0G] upload error:", err);
-      throw new Error(err);
-    }
-
-    // ✅ SUPER ROBUST ROOT HASH EXTRACTION
+    // SDK returns different shapes. Handle all.
     const rootHash =
       tx?.rootHash ||
       tx?.data?.rootHash ||
       tx?.output?.rootHash ||
-      tx?.result?.rootHash ||
-      (Array.isArray(tx?.rootHashes) ? tx.rootHashes[0] : null) ||
-      (Array.isArray(tx) ? tx?.[0]?.rootHash : null);
+      (Array.isArray(tx?.rootHashes)? tx.rootHashes[0] : null);
 
     const txHash =
       tx?.txHash ||
       tx?.transactionHash ||
       tx?.hash ||
-      tx?.output?.txHash ||
-      tx?.data?.txHash ||
-      "";
+      null;
 
     if (!rootHash) {
-      console.error("❌ FULL 0G RESPONSE:", tx);
+      console.error(" FULL TX RESPONSE:", JSON.stringify(tx, (k, v) => typeof v === 'bigint'? v.toString() : v));
       throw new Error("Missing rootHash from 0G response");
     }
 
-    console.log("[0G SUCCESS]");
-    console.log("rootHash:", rootHash);
-    console.log("txHash:", txHash);
+    console.log(` TX: https://chainscan-galileo.0g.ai/tx/${txHash}`);
+    console.log(` File: https://storagescan-galileo.0g.ai/#/data/${rootHash}`);
 
-    return { rootHash, txHash };
+    return { rootHash, txHash: txHash || '' };
 
-  } catch (e) {
-    console.error("[0G UPLOAD FAILED]", e);
-    throw e;
+  } catch (e: any) {
+    console.error(`[0G ERROR]`, e.message || e);
+    throw new Error(`0G upload failed: ${e.message || e}`);
   } finally {
     if (file) await file.close().catch(() => {});
     if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
   }
 };
-
 
 export const downloadFrom0G = async (rootHash: string): Promise<ContentData> => {
   if (!rootHash) throw new Error('rootHash is required');
@@ -124,6 +120,7 @@ export const downloadFrom0G = async (rootHash: string): Promise<ContentData> => 
   }
 };
 
+// Manifest storage - works on Hostinger /tmp. Data lost on restart but 0G is source of truth.
 const getManifestPath = () => path.join(os.tmpdir(), '0g_manifests.json');
 
 type ManifestEntry = { rootHash: string; txHash?: string | null };
@@ -136,7 +133,7 @@ const readManifests = (): Record<string, ManifestEntry[]> => {
       const arr = (rawAny[k] || []).map((e: any) => {
         if (!e) return null;
         if (typeof e === 'string') return { rootHash: e, txHash: null };
-        if (typeof e === 'object' && e.rootHash) return { rootHash: e.rootHash, txHash: e.txHash ?? null };
+        if (typeof e === 'object' && e.rootHash) return { rootHash: e.rootHash, txHash: e.txHash?? null };
         return null;
       }).filter(Boolean) as ManifestEntry[];
       if (arr.length) out[k] = arr;
@@ -164,7 +161,7 @@ export const savePendingEntry = async (userAddress: string, pendingId: string): 
 
 export const saveUserHash = async (userAddress: string, rootHash: string, txHash?: string | null): Promise<void> => {
   if (!rootHash) {
-    console.warn('[0G] saveUserHash called with empty rootHash - ignoring');
+    console.warn(' saveUserHash called with empty rootHash - ignoring');
     return;
   }
 
@@ -172,12 +169,12 @@ export const saveUserHash = async (userAddress: string, rootHash: string, txHash
   const addr = userAddress.toLowerCase();
   if (!manifests[addr]) manifests[addr] = [];
 
-  // If there is a pending entry, replace the earliest pending with actual rootHash
+  // Replace earliest pending with actual rootHash
   const pendingIndex = manifests[addr].findIndex(x => typeof x.rootHash === 'string' && x.rootHash.startsWith('PENDING:'));
-  if (pendingIndex !== -1) {
-    manifests[addr][pendingIndex] = { rootHash, txHash: txHash ?? null };
+  if (pendingIndex!== -1) {
+    manifests[addr][pendingIndex] = { rootHash, txHash: txHash?? null };
   } else if (!manifests[addr].find(x => x.rootHash === rootHash)) {
-    manifests[addr].push({ rootHash, txHash: txHash ?? null });
+    manifests[addr].push({ rootHash, txHash: txHash?? null });
   }
 
   writeManifests(manifests);
@@ -188,7 +185,7 @@ export const savePendingData = async (userAddress: string, data: any): Promise<v
     const pendingPath = path.join(os.tmpdir(), `0g_pending_${userAddress.toLowerCase()}_${data.id}.json`);
     fs.writeFileSync(pendingPath, JSON.stringify(data, null, 2));
   } catch (e) {
-    console.warn('[0G] savePendingData failed', e);
+    console.warn(' savePendingData failed', e);
   }
 };
 
