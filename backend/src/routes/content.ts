@@ -85,6 +85,29 @@ router.get('/library', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+router.get('/status/:id', requireAuth, async (req: AuthRequest, res) => {
+  const user = req.user!.address;
+  try {
+    const hashes = await getUserHashes(user);
+    const entry = hashes.find(h => h.rootHash.includes(req.params.id) || h.rootHash === req.params.id);
+    
+    if (!entry) return res.json({ status: 'PENDING_0G' });
+    
+    if (entry.rootHash.startsWith('PENDING:')) {
+      return res.json({ status: 'PENDING_0G', id: req.params.id });
+    }
+    
+    const item = await downloadFrom0G(entry.rootHash);
+    return res.json({ 
+      status: '0G_GALILEO', 
+     ...item, 
+      hash: entry.rootHash, 
+      txHash: entry.txHash 
+    });
+  } catch (e: any) {
+    return res.status(500).json({ status: 'FAILED', error: e.message });
+  }
+});
 
 
 export default router;

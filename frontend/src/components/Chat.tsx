@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { generateContent, getLibrary } from "../services/api"; // <- Added getLibrary
+import { generateContent, getContentStatus } from "../services/api"; // <- Add getContentStatus
 import { ContentType, ContentData } from "../types";
 import { Copy, Check, Sparkles, ExternalLink, Clock,CloudOff } from "lucide-react";
 import "./chat.css";
@@ -59,42 +59,42 @@ export default function Chat({ onNew, externalMessages, chatId }: ChatProps) {
     }
   }, [input]);
 
-  const send = async () => {
-    if (!input.trim() || loading) return;
+ const send = async () => {
+  if (!input.trim() || loading) return;
 
-    const currentPrompt = input;
-    setInput("");
-    setLoading(true);
+  const currentPrompt = input;
+  setInput("");
+  setLoading(true);
 
-    try {
-      const res = await generateContent(currentPrompt, type, chatId);
-      onNew(res.data); // res.data has hash: null if 0G pending
+  try {
+    const res = await generateContent(currentPrompt, type, chatId);
+    onNew(res.data);
 
-      // START POLLING HERE - Add this block
-      const pollId = res.data.id;
-      let attempts = 0;
-      const pollInterval = setInterval(async () => {
-        attempts++;
-        try {
-          const { data: library } = await getLibrary();
-          const updated = library.find((item: ContentData) => item.id === pollId);
-          if (updated && updated.storage === '0G_GALILEO') {
-            onNew(updated); // Replace "Saving..." with TX
-            clearInterval(pollInterval);
-          }
-        } catch (e) {
-          console.error('Poll failed', e);
+    const pollId = res.data.id;
+    let attempts = 0;
+    const pollInterval = setInterval(async () => {
+      attempts++;
+      try {
+        // Use getContentStatus instead of raw axios
+        const { data: updated } = await getContentStatus(pollId);
+        
+        if (updated.status === '0G_GALILEO' && updated.txHash) {
+          onNew(updated);
+          clearInterval(pollInterval);
         }
-        if (attempts > 15) clearInterval(pollInterval); // Stop after 30s
-      }, 2000);
-      // END POLLING
+      } catch (e) {
+        console.error('Poll failed', e);
+      }
+      if (attempts > 120) clearInterval(pollInterval); // 4 min timeout
+    }, 2000);
 
-    } catch (e: any) {
-      console.error("Generation failed", e);
-      alert("Generation failed: " + e.message);
-    }
-    setLoading(false);
-  };
+  } catch (e: any) {
+    alert("Generation failed: " + e.message);
+  }
+  setLoading(false);
+};
+
+
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
