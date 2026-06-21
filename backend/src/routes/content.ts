@@ -51,11 +51,11 @@ router.get('/library', requireAuth, async (req: AuthRequest, res) => {
   try {
     const hashes = await getUserHashes(user);
 
-    // Dedupe by content ID before returning
+    // Process final items first, then pending. Dedupe by content ID
     const seenIds = new Set<string>();
     const data = [];
 
-    for (const { rootHash, txHash } of hashes.reverse()) { // reverse = final items first
+    for (const { rootHash, txHash } of hashes.reverse()) {
       try {
         let item: ContentData | null = null;
 
@@ -84,6 +84,7 @@ router.get('/library', requireAuth, async (req: AuthRequest, res) => {
     return res.status(500).json({ error: 'Library failed', detail: err.message });
   }
 });
+
 
 
 export default router;
