@@ -12,12 +12,13 @@ router.post('/generate', requireAuth, async (req: AuthRequest, res) => {
   const user = req.user!.address;
   try {
     const { prompt, type, chatId } = req.body;
-    if (!prompt || !type) return res.status(400).json({ error: 'Missing prompt or type' });
+    if (!prompt ||!type) return res.status(400).json({ error: 'Missing prompt or type' });
 
-   const result = await generateWithAI(prompt, type);
+    // 1. Generate content - must succeed or we fail fast
+    const result = await generateWithAI(prompt, type);
     const data: ContentData = {
       id: uuid(),
-      chatId: chatId || uuid(),
+      chatId: chatId || uuid(), // Handle if frontend doesn't send chatId
       userAddress: user,
       type,
       prompt,
@@ -27,18 +28,17 @@ router.post('/generate', requireAuth, async (req: AuthRequest, res) => {
       createdAt: Date.now()
     };
 
+    // 2. Send to frontend IMMEDIATELY - don't wait for 0G
     res.json({
-      ...data,
+     ...data,
       hash: null,
       txHash: null,
       storage: 'PENDING_0G',
       status: 'GENERATED'
     });
 
-    // CRITICAL: Catch errors so they don't crash the request
-    Promise.resolve().then(() => addTo0GQueue(data)).catch(err => {
-      console.error('[0G QUEUE ADD FAILED]', err.message);
-    });
+    // 3. Upload to 0G in background - never blocks response
+    addTo0GQueue(data);
 
   } catch (err: any) {
     console.error('GENERATE ERROR:', err);
@@ -50,6 +50,8 @@ router.get('/library', requireAuth, async (req: AuthRequest, res) => {
   const user = req.user!.address;
   try {
     const hashes = await getUserHashes(user);
+
+    // Process final items first, then pending. Dedupe by content ID
     const seenIds = new Set<string>();
     const data = [];
 
@@ -61,14 +63,14 @@ router.get('/library', requireAuth, async (req: AuthRequest, res) => {
           const pendingId = rootHash.split(':')[1];
           item = await readPendingData(user, pendingId);
           if (item) {
-            item = { ...item, hash: null, txHash: null, storage: 'PENDING_0G' as const };
+            item = {...item, hash: null, txHash: null, storage: 'PENDING_0G' as const };
           }
         } else {
           item = await downloadFrom0G(rootHash);
-          item = { ...item, hash: rootHash, txHash, storage: '0G_GALILEO' as const };
+          item = {...item, hash: rootHash, txHash, storage: '0G_GALILEO' as const };
         }
 
-        if (item && !seenIds.has(item.id)) {
+        if (item &&!seenIds.has(item.id)) {
           seenIds.add(item.id);
           data.push(item);
         }
@@ -77,41 +79,12 @@ router.get('/library', requireAuth, async (req: AuthRequest, res) => {
       }
     }
 
-    return res.json(data.sort((a, b) => (b?.createdAt || 0) - (a?.createdAt || 0)));
+    return res.json(data.sort((a, b) => b!.createdAt - a!.createdAt));
   } catch (err: any) {
     return res.status(500).json({ error: 'Library failed', detail: err.message });
   }
 });
 
-router.get('/status/:id', requireAuth, async (req: AuthRequest, res) => {
-  const user = req.user!.address;
-  try {
-    const hashes = await getUserHashes(user);
-    
-    // Check pending first
-    const pendingEntry = hashes.find(h => h.rootHash === `PENDING:${req.params.id}`);
-    if (pendingEntry) {
-      const item = await readPendingData(user, req.params.id);
-      if (item) {
-        return res.json({ ...item, hash: null, txHash: null, storage: 'PENDING_0G' });
-      }
-    }
-    
-    // Check finalized
-    for (const { rootHash, txHash } of hashes) {
-      if (rootHash.startsWith('PENDING:')) continue;
-      try {
-        const item = await downloadFrom0G(rootHash);
-        if (item.id === req.params.id) {
-          return res.json({ ...item, hash: rootHash, txHash, storage: '0G_GALILEO' });
-        }
-      } catch {}
-    }
-    
-    return res.json({ id: req.params.id, storage: 'PENDING_0G', txHash: null });
-  } catch {
-    return res.json({ id: req.params.id, storage: 'PENDING_0G', txHash: null });
-  }
-});
+
 
 export default router;

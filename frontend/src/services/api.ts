@@ -15,22 +15,12 @@ export const verifySignature = (address: string, signature: string) =>
 
 // Changed: added chatId param
 export const generateContent = (prompt: string, type: ContentType, chatId: string) =>
-  axios.post<ContentData & { hash: string | null; txHash: string | null; storage: string; status: string }>(
-    `${API}/api/content/generate`, // <- FIXED
+  axios.post<ContentData & { hash: string; explorerUrl: string }>(
+    `${API}/api/generate`,
     { prompt, type, chatId },
     authHeader()
   );
 
 export const getLibrary = () =>
-  axios.get<(ContentData & { hash: string | null; txHash: string | null; storage: string })[]>(
-    `${API}/api/content/library`, // <- FIXED
-    authHeader()
-  );
-
-
-export const getContentStatus = (id: string) =>
-  axios.get<ContentData & { hash: string | null; txHash: string | null; storage: string }>(
-    `${API}/api/content/status/${id}`,
-    authHeader()
-  );
+  axios.get<(ContentData & { hash: string })[]>(`${API}/api/library`, authHeader());
 
