@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { v4 as uuid } from 'uuid';
 import { requireAuth, type AuthRequest } from '../middleware/auth';
-import { generateWithGroq } from '../services/groq';
+import { generateWithAI } from '../services/ai';
 import { addTo0GQueue } from '../services/ogQueue';
 import { getUserHashes, downloadFrom0G, readPendingData } from '../services/ogStorage';
 import { ContentData } from '../types';
@@ -14,7 +14,7 @@ router.post('/generate', requireAuth, async (req: AuthRequest, res) => {
     const { prompt, type, chatId } = req.body;
     if (!prompt || !type) return res.status(400).json({ error: 'Missing prompt or type' });
 
-    const result = await generateWithGroq(prompt, type);
+   const result = await generateWithAI(prompt, type);
     const data: ContentData = {
       id: uuid(),
       chatId: chatId || uuid(),
