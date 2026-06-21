@@ -34,5 +34,3 @@ export const getContentStatus = (id: string) =>
     authHeader()
   );
 
-
-  
