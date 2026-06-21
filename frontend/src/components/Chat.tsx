@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { generateContent, getLibrary } from "../services/api"; // <- Added getLibrary
+import { generateContent} from "../services/api"; // <- Use getContentStatus for polling
 import { ContentType, ContentData } from "../types";
 import { Copy, Check, Sparkles, ExternalLink, Clock,CloudOff } from "lucide-react";
+import {getLibrary} from "../services/api"
 import "./chat.css";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -86,7 +87,7 @@ export default function Chat({ onNew, externalMessages, chatId }: ChatProps) {
           console.error('Poll failed', e);
         }
         if (attempts > 15) clearInterval(pollInterval); // Stop after 30s
-      }, 2000);
+      }, 4000);
       // END POLLING
 
     } catch (e: any) {
