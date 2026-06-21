@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { generateContent} from "../services/api"; // <- Use getContentStatus for polling
+import { generateContent } from "../services/api";
 import { ContentType, ContentData } from "../types";
 import { Copy, Check, Sparkles, ExternalLink, Clock,CloudOff } from "lucide-react";
-import {getLibrary} from "../services/api"
 import "./chat.css";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -13,11 +12,12 @@ type Message = {
   id: string;
   chatId: string;
   hash?: string | null;
-  txHash?: string | null;
+  txHash?: string | null; // Add this
   storage?: '0G_GALILEO' | 'PENDING_0G' | 'FAILED';
   type?: ContentType;
   createdAt?: number;
 };
+
 
 interface ChatProps {
   onNew: (d: ContentData) => void;
@@ -34,20 +34,21 @@ export default function Chat({ onNew, externalMessages, chatId }: ChatProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const messages: Message[] = externalMessages.flatMap((d) => [
-    { role: "user" as const, text: d.prompt, id: `user-${d.id}`, chatId: d.chatId },
-    {
-      role: "ai" as const,
-      text: d.content,
-      id: `ai-${d.id}`,
-      chatId: d.chatId,
-      hash: d.hash,
-      txHash: d.txHash,
-      storage: d.storage,
-      type: d.type,
-      createdAt: d.createdAt,
-    },
-  ]);
+ const messages: Message[] = externalMessages.flatMap((d) => [
+  { role: "user" as const, text: d.prompt, id: `user-${d.id}`, chatId: d.chatId },
+  {
+    role: "ai" as const,
+    text: d.content,
+    id: `ai-${d.id}`,
+    chatId: d.chatId,
+    hash: d.hash,
+    txHash: d.txHash, // Add this
+    storage: d.storage,
+    type: d.type,
+    createdAt: d.createdAt,
+  },
+]);
+
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -70,26 +71,6 @@ export default function Chat({ onNew, externalMessages, chatId }: ChatProps) {
     try {
       const res = await generateContent(currentPrompt, type, chatId);
       onNew(res.data); // res.data has hash: null if 0G pending
-
-      // START POLLING HERE - Add this block
-      const pollId = res.data.id;
-      let attempts = 0;
-      const pollInterval = setInterval(async () => {
-        attempts++;
-        try {
-          const { data: library } = await getLibrary();
-          const updated = library.find((item: ContentData) => item.id === pollId);
-          if (updated && updated.storage === '0G_GALILEO') {
-            onNew(updated); // Replace "Saving..." with TX
-            clearInterval(pollInterval);
-          }
-        } catch (e) {
-          console.error('Poll failed', e);
-        }
-        if (attempts > 15) clearInterval(pollInterval); // Stop after 30s
-      }, 4000);
-      // END POLLING
-
     } catch (e: any) {
       console.error("Generation failed", e);
       alert("Generation failed: " + e.message);
@@ -118,38 +99,40 @@ export default function Chat({ onNew, externalMessages, chatId }: ChatProps) {
   ];
 
   const renderStorageBadge = (
-    storage?: string,
-    _hash?: string | null,
-    txHash?: string | null
-  ) => {
-    if (storage === '0G_GALILEO' && txHash) {
-      return (
-        <a
-          href={`https://chainscan-galileo.0g.ai/tx/${txHash}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hashLink"
-        >
-          <ExternalLink size={14} />
-          TX: {txHash.slice(0, 10)}...
-        </a>
-      );
-    }
-    if (storage === 'PENDING_0G') {
-      return (
-        <span className="hashLink pending">
-          <Clock size={14} />
-          Saving to 0G...
-        </span>
-      );
-    }
+  storage?: string,
+  _hash?: string | null,
+  txHash?: string | null
+) => {
+  if (storage === '0G_GALILEO' && txHash) {
     return (
-      <span className="hashLink failed">
-        <CloudOff size={14} />
-        Local only
+      <a
+        href={`https://chainscan-galileo.0g.ai/tx/${txHash}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="hashLink"
+      >
+        <ExternalLink size={14} />
+        TX: {txHash.slice(0, 10)}...
+      </a>
+    );
+  }
+  if (storage === 'PENDING_0G') {
+    return (
+      <span className="hashLink pending">
+        <Clock size={14} />
+        Saving to 0G...
       </span>
     );
-  };
+  }
+  return (
+    <span className="hashLink failed">
+      <CloudOff size={14} />
+      Local only
+    </span>
+  );
+};
+
+
 
   return (
     <div className="chat">
@@ -178,13 +161,13 @@ export default function Chat({ onNew, externalMessages, chatId }: ChatProps) {
             <div key={m.id} className={`message ${m.role}`}>
               <div className="messageAvatar">{m.role === "user"? "You" : "AI"}</div>
               <div className="messageContent">
-
+                
                 <div className="messageText markdown">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {m.text}
-                  </ReactMarkdown>
-                </div>
-
+  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+    {m.text}
+  </ReactMarkdown>
+</div>
+                
                 {m.role === "ai" && (
                   <div className="messageActions">
                     <button className="copyBtn" onClick={() => copyText(m.text, m.id)}>

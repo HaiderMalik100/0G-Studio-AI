@@ -29,18 +29,9 @@ export default function App() {
   }, [token]);
 
   const addHistory = (data: ContentData) => {
-  setHistory((p) => {
-    const exists = p.find(item => item.id === data.id);
-    if (exists) {
-      // Update existing: replace "Saving..." with final TX
-      return p.map(item => item.id === data.id ? data : item);
-    }
-    // New item
-    return [...p, data];
-  });
-  setActiveChatId(data.chatId);
-};
-
+    setHistory((p) => [...p, data]);
+    setActiveChatId(data.chatId);
+  };
 
   const openHistory = (item: ContentData) => {
     setActiveChatId(item.chatId);
@@ -48,12 +39,9 @@ export default function App() {
   };
 
   const handleNewChat = () => {
-  const newId = uuidv4();
-  setActiveChatId(newId);
-  setSidebarOpen(false);
-  // Force clear any cached render
-  setHistory(prev => [...prev]); // trigger rerender
-};
+    setActiveChatId(uuidv4());
+    setSidebarOpen(false);
+  };
 
   const activeMessages = history.filter((h) => h.chatId === activeChatId);
 
@@ -116,12 +104,10 @@ export default function App() {
         </header>
 
         <Chat
-  key={activeChatId}  // <- Add this line
-  onNew={addHistory}
-  externalMessages={activeMessages}
-  chatId={activeChatId}
-/>
-
+          onNew={addHistory}
+          externalMessages={activeMessages}
+          chatId={activeChatId}
+        />
       </main>
 
     </div>

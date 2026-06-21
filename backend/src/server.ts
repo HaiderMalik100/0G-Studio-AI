@@ -94,7 +94,8 @@ console.log("OG RPC LOADED:", !!process.env.OG_EVM_RPC);
  * =========================
  */
 app.use("/auth", authRoutes);
-app.use("/api", contentRoutes);
+app.use("/api/content", contentRoutes); // was "/api"
+
 
 /**
  * HEALTH CHECK
