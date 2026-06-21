@@ -29,9 +29,18 @@ export default function App() {
   }, [token]);
 
   const addHistory = (data: ContentData) => {
-    setHistory((p) => [...p, data]);
-    setActiveChatId(data.chatId);
-  };
+  setHistory((p) => {
+    const exists = p.find(item => item.id === data.id);
+    if (exists) {
+      // Update existing: replace "Saving..." with final TX
+      return p.map(item => item.id === data.id ? data : item);
+    }
+    // New item
+    return [...p, data];
+  });
+  setActiveChatId(data.chatId);
+};
+
 
   const openHistory = (item: ContentData) => {
     setActiveChatId(item.chatId);
@@ -104,10 +113,12 @@ export default function App() {
         </header>
 
         <Chat
-          onNew={addHistory}
-          externalMessages={activeMessages}
-          chatId={activeChatId}
-        />
+  key={activeChatId}  // <- Add this line
+  onNew={addHistory}
+  externalMessages={activeMessages}
+  chatId={activeChatId}
+/>
+
       </main>
 
     </div>

@@ -150,7 +150,7 @@ const writeManifests = (data: Record<string, ManifestEntry[]>) => {
 
 export const savePendingEntry = async (userAddress: string, pendingId: string): Promise<void> => {
   const manifests = readManifests();
-  const addr = userAddress.toLowerCase();
+  const addr = userAddress.toLowerCase(); // <- was missing
   if (!manifests[addr]) manifests[addr] = [];
   const pendingRoot = `PENDING:${pendingId}`;
   if (!manifests[addr].find(x => x.rootHash === pendingRoot)) {
@@ -161,12 +161,12 @@ export const savePendingEntry = async (userAddress: string, pendingId: string): 
 
 export const saveUserHash = async (userAddress: string, rootHash: string, txHash?: string | null): Promise<void> => {
   if (!rootHash) {
-    console.warn(' saveUserHash called with empty rootHash - ignoring');
+    console.warn('saveUserHash called with empty rootHash - ignoring');
     return;
   }
 
   const manifests = readManifests();
-  const addr = userAddress.toLowerCase();
+  const addr = userAddress.toLowerCase(); // <- was missing
   if (!manifests[addr]) manifests[addr] = [];
 
   // Replace earliest pending with actual rootHash

@@ -50,31 +50,40 @@ router.get('/library', requireAuth, async (req: AuthRequest, res) => {
   const user = req.user!.address;
   try {
     const hashes = await getUserHashes(user);
-    const data = await Promise.all(
-      hashes.map(async ({ rootHash, txHash }) => {
-        try {
-          // Handle pending entries
-          if (rootHash.startsWith('PENDING:')) {
-            const pendingId = rootHash.split(':')[1];
-            const pendingData = await readPendingData(user, pendingId);
-            if (pendingData) {
-              return {...pendingData, hash: null, txHash: null, storage: 'PENDING_0G' as const };
-            }
-            return null;
-          }
 
-          const item = await downloadFrom0G(rootHash);
-          return {...item, hash: rootHash, txHash, storage: '0G_GALILEO' as const };
-        } catch (e: any) {
-          console.warn(`[LIBRARY] Skipping hash ${rootHash} - download failed:`, e.message);
-          return null;
+    // Dedupe by content ID before returning
+    const seenIds = new Set<string>();
+    const data = [];
+
+    for (const { rootHash, txHash } of hashes.reverse()) { // reverse = final items first
+      try {
+        let item: ContentData | null = null;
+
+        if (rootHash.startsWith('PENDING:')) {
+          const pendingId = rootHash.split(':')[1];
+          item = await readPendingData(user, pendingId);
+          if (item) {
+            item = {...item, hash: null, txHash: null, storage: 'PENDING_0G' as const };
+          }
+        } else {
+          item = await downloadFrom0G(rootHash);
+          item = {...item, hash: rootHash, txHash, storage: '0G_GALILEO' as const };
         }
-      })
-    );
-    return res.json(data.filter(Boolean).sort((a, b) => b!.createdAt - a!.createdAt));
+
+        if (item &&!seenIds.has(item.id)) {
+          seenIds.add(item.id);
+          data.push(item);
+        }
+      } catch (e: any) {
+        console.warn(`[LIBRARY] Skipping hash ${rootHash}:`, e.message);
+      }
+    }
+
+    return res.json(data.sort((a, b) => b!.createdAt - a!.createdAt));
   } catch (err: any) {
     return res.status(500).json({ error: 'Library failed', detail: err.message });
   }
 });
+
 
 export default router;
