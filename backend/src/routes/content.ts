@@ -85,6 +85,23 @@ router.get('/library', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+router.get('/status/:id', requireAuth, async (req: AuthRequest, res) => {
+  const user = req.user!.address;
+  try {
+    const hashes = await getUserHashes(user);
+    const entry = hashes.find(h => h.rootHash === req.params.id || h.rootHash.includes(req.params.id));
+    
+    if (!entry || entry.rootHash.startsWith('PENDING:')) {
+      return res.json({ id: req.params.id, storage: 'PENDING_0G', txHash: null });
+    }
+    
+    const item = await downloadFrom0G(entry.rootHash);
+    return res.json({ ...item, hash: entry.rootHash, txHash: entry.txHash, storage: '0G_GALILEO' });
+  } catch {
+    return res.json({ id: req.params.id, storage: 'PENDING_0G', txHash: null });
+  }
+});
+
 
 
 export default router;

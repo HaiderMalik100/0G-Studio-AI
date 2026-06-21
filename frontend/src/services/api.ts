@@ -24,3 +24,9 @@ export const generateContent = (prompt: string, type: ContentType, chatId: strin
 export const getLibrary = () =>
   axios.get<(ContentData & { hash: string })[]>(`${API}/api/library`, authHeader());
 
+export const getContentStatus = (id: string) =>
+  axios.get<ContentData & { hash: string | null; txHash: string | null; storage: string }>(
+    `${API}/api/content/status/${id}`,
+    authHeader()
+  );
+

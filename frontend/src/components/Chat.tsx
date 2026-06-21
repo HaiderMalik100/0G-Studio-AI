@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { generateContent, getLibrary } from "../services/api"; // <- Added getLibrary
+import { generateContent, getLibrary,getContentStatus } from "../services/api"; // <- Added getLibrary
 import { ContentType, ContentData } from "../types";
 import { Copy, Check, Sparkles, ExternalLink, Clock,CloudOff } from "lucide-react";
 import "./chat.css";
@@ -78,8 +78,8 @@ export default function Chat({ onNew, externalMessages, chatId }: ChatProps) {
     const pollInterval = setInterval(async () => {
       attempts++;
       try {
-        const { data: library } = await getLibrary();
-        const updated = library.find((item: ContentData) => item.id === pollId);
+        const { data: updated } = await getContentStatus(pollId);
+
         
         console.log('[POLL] Attempt', attempts, 'Found:', updated?.storage, updated?.txHash);
         
@@ -92,10 +92,10 @@ export default function Chat({ onNew, externalMessages, chatId }: ChatProps) {
         console.error('[POLL] Failed', e);
       }
       
-      if (attempts > 60) { // 2 minutes now
-        console.warn('[POLL] Timeout for', pollId);
-        clearInterval(pollInterval);
-      }
+      if (attempts > 150) { // 5 minutes now
+  console.warn('[POLL] Timeout for', pollId);
+  clearInterval(pollInterval);
+}
     }, 2000);
 
   } catch (e: any) {
