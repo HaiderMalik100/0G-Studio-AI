@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { generateContent, getContentStatus } from "../services/api"; // <- Add getContentStatus
+import { generateContent, getLibrary } from "../services/api"; // <- Added getLibrary
 import { ContentType, ContentData } from "../types";
 import { Copy, Check, Sparkles, ExternalLink, Clock,CloudOff } from "lucide-react";
 import "./chat.css";
@@ -70,30 +70,40 @@ export default function Chat({ onNew, externalMessages, chatId }: ChatProps) {
     const res = await generateContent(currentPrompt, type, chatId);
     onNew(res.data);
 
+    // POLLING - increased to 2 minutes
     const pollId = res.data.id;
     let attempts = 0;
+    console.log('[POLL] Starting for', pollId);
+    
     const pollInterval = setInterval(async () => {
       attempts++;
       try {
-        // Use getContentStatus instead of raw axios
-        const { data: updated } = await getContentStatus(pollId);
+        const { data: library } = await getLibrary();
+        const updated = library.find((item: ContentData) => item.id === pollId);
         
-        if (updated.status === '0G_GALILEO' && updated.txHash) {
+        console.log('[POLL] Attempt', attempts, 'Found:', updated?.storage, updated?.txHash);
+        
+        if (updated && updated.storage === '0G_GALILEO' && updated.txHash) {
+          console.log('[POLL] Success! TX:', updated.txHash);
           onNew(updated);
           clearInterval(pollInterval);
         }
       } catch (e) {
-        console.error('Poll failed', e);
+        console.error('[POLL] Failed', e);
       }
-      if (attempts > 120) clearInterval(pollInterval); // 4 min timeout
+      
+      if (attempts > 60) { // 2 minutes now
+        console.warn('[POLL] Timeout for', pollId);
+        clearInterval(pollInterval);
+      }
     }, 2000);
 
   } catch (e: any) {
+    console.error("Generation failed", e);
     alert("Generation failed: " + e.message);
   }
   setLoading(false);
 };
-
 
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

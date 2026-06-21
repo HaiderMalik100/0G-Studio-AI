@@ -13,24 +13,14 @@ export const getNonce = (address: string) =>
 export const verifySignature = (address: string, signature: string) =>
   axios.post(`${API}/auth/verify`, { address, signature });
 
-// Fixed: changed /api/generate to /api/content/generate
+// Changed: added chatId param
 export const generateContent = (prompt: string, type: ContentType, chatId: string) =>
-  axios.post<ContentData & { hash: string | null; txHash: string | null; storage: string; status: string }>(
-    `${API}/api/content/generate`,
+  axios.post<ContentData & { hash: string; explorerUrl: string }>(
+    `${API}/api/generate`,
     { prompt, type, chatId },
     authHeader()
   );
 
-// Fixed: changed /api/library to /api/content/library  
 export const getLibrary = () =>
-  axios.get<(ContentData & { hash: string | null; txHash: string | null; storage: string })[]>(
-    `${API}/api/content/library`, 
-    authHeader()
-  );
+  axios.get<(ContentData & { hash: string })[]>(`${API}/api/library`, authHeader());
 
-// Add this new function
-export const getContentStatus = (id: string) =>
-  axios.get<ContentData & { hash: string | null; txHash: string | null; storage: string; status: string }>(
-    `${API}/api/content/status/${id}`,
-    authHeader()
-  );
