@@ -48,9 +48,12 @@ export default function App() {
   };
 
   const handleNewChat = () => {
-    setActiveChatId(uuidv4());
-    setSidebarOpen(false);
-  };
+  const newId = uuidv4();
+  setActiveChatId(newId);
+  setSidebarOpen(false);
+  // Force clear any cached render
+  setHistory(prev => [...prev]); // trigger rerender
+};
 
   const activeMessages = history.filter((h) => h.chatId === activeChatId);
 
