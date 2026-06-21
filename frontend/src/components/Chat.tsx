@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { generateContent, getLibrary,getContentStatus } from "../services/api"; // <- Added getLibrary
+import { generateContent, getContentStatus } from "../services/api"; // <- Added getLibrary
 import { ContentType, ContentData } from "../types";
 import { Copy, Check, Sparkles, ExternalLink, Clock,CloudOff } from "lucide-react";
 import "./chat.css";

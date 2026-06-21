@@ -13,6 +13,7 @@ import dotenv from "dotenv";
 import authRoutes from "./routes/auth";
 import contentRoutes from "./routes/content";
 
+
 dotenv.config();
 
 
@@ -93,7 +94,8 @@ console.log("OG RPC LOADED:", !!process.env.OG_EVM_RPC);
  * =========================
  */
 app.use("/auth", authRoutes);
-app.use("/api", contentRoutes);
+app.use("/api/content", contentRoutes);
+
 
 /**
  * HEALTH CHECK
