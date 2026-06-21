@@ -34,3 +34,9 @@ export const getContentStatus = (id: string) =>
     authHeader()
   );
 
+
+export const checkGenerationStatus = (contentId: string) =>
+  axios.get<ContentData & { hash: string | null; txHash: string | null; storage: string }>(
+    `${API}/api/content/generate/status/${contentId}`,
+    authHeader()
+  );

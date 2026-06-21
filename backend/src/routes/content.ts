@@ -85,6 +85,52 @@ router.get('/library', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// NEW: Get status of a generated content (for polling txHash)
+router.get('/generate/status/:contentId', requireAuth, async (req: AuthRequest, res) => {
+  const user = req.user!.address;
+  const { contentId } = req.params;
+
+  try {
+    const hashes = await getUserHashes(user);
+    
+    // Look for this content ID in the manifest
+    for (const { rootHash, txHash } of hashes) {
+      if (rootHash === `PENDING:${contentId}`) {
+        // Still pending
+        return res.json({ 
+          contentId,
+          txHash: null,
+          storage: 'PENDING_0G'
+        });
+      }
+      
+      // Check if this rootHash is from our content
+      try {
+        const item = await downloadFrom0G(rootHash);
+        if (item?.id === contentId) {
+          return res.json({
+            contentId,
+            txHash: txHash || null,
+            storage: '0G_GALILEO',
+            rootHash
+          });
+        }
+      } catch (e) {
+        // Continue searching
+      }
+    }
+
+    // Not found yet
+    return res.json({
+      contentId,
+      txHash: null,
+      storage: 'PENDING_0G'
+    });
+
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Status check failed', detail: err.message });
+  }
+});
 
 
 export default router;

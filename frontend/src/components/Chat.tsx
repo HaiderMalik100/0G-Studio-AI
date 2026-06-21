@@ -5,6 +5,8 @@ import { Copy, Check, Sparkles, ExternalLink, Clock,CloudOff } from "lucide-reac
 import "./chat.css";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { useTxHashPoller } from '../hooks/useTxHashPoller';
+
 
 type Message = {
   role: "user" | "ai";
@@ -25,29 +27,39 @@ interface ChatProps {
   chatId: string;
 }
 
+
 export default function Chat({ onNew, externalMessages, chatId }: ChatProps) {
   const [input, setInput] = useState("");
   const [type, setType] = useState<ContentType>("tweet");
   const [loading, setLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [messageUpdates, setMessageUpdates] = useState<Record<string, string>>({});
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
- const messages: Message[] = externalMessages.flatMap((d) => [
-  { role: "user" as const, text: d.prompt, id: `user-${d.id}`, chatId: d.chatId },
-  {
-    role: "ai" as const,
-    text: d.content,
-    id: `ai-${d.id}`,
-    chatId: d.chatId,
-    hash: d.hash,
-    txHash: d.txHash, // Add this
-    storage: d.storage,
-    type: d.type,
-    createdAt: d.createdAt,
-  },
-]);
+  // Add polling for pending txHashes
+  useTxHashPoller(externalMessages, (contentId, txHash) => {
+    console.log(`TxHash received for ${contentId}: ${txHash}`);
+    setMessageUpdates((prev) => ({ ...prev, [contentId]: txHash }));
+  });
+
+  const messages: Message[] = externalMessages.flatMap((d) => [
+    { role: "user" as const, text: d.prompt, id: `user-${d.id}`, chatId: d.chatId },
+    {
+      role: "ai" as const,
+      text: d.content,
+      id: `ai-${d.id}`,
+      chatId: d.chatId,
+      hash: d.hash,
+      txHash: messageUpdates[d.id] || d.txHash, // Use updated txHash if available
+      storage: messageUpdates[d.id] ? '0G_GALILEO' : d.storage,
+      type: d.type,
+      createdAt: d.createdAt,
+    },
+  ]);
+
+  // ... rest of component remains the same
 
 
   useEffect(() => {
