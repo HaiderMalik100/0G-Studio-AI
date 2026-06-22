@@ -50,7 +50,7 @@ export default function App() {
   useTxHashPoller(history, handleTxHashUpdate);
 
   const addHistory = (data: ContentData) => {
-    setHistory((p) => [data, ...p]); // Add to top
+    setHistory((p) => [...p, data]); // Add to top
     setActiveChatId(data.chatId);
   };
 
@@ -70,8 +70,10 @@ export default function App() {
     }
   };
 
-  const activeMessages = history.filter((h) => h.chatId === activeChatId);
-
+const activeMessages = history
+  .filter((h) => h.chatId === activeChatId)
+  .sort((a, b) => a.createdAt - b.createdAt); // oldest first
+  
   if (!isConnected) {
     return (
       <div className="authScreen">

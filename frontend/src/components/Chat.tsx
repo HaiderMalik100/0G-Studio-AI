@@ -30,8 +30,10 @@ export default function Chat({ onNew, externalMessages, chatId }: ChatProps) {
   const [loading, setLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null); // CHANGE 1: renamed
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const messagesRef = useRef<HTMLDivElement>(null); // CHANGE 2: new ref for container
+
 
   const messages: Message[] = externalMessages.flatMap((d) => [
     { role: "user" as const, text: d.prompt, id: `user-${d.id}`, chatId: d.chatId },
@@ -48,9 +50,18 @@ export default function Chat({ onNew, externalMessages, chatId }: ChatProps) {
     },
   ]);
 
+  // CHANGE 3: Replace old useEffect with this smart scroll
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length]);
+    if (!messagesRef.current ||!messagesEndRef.current) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = messagesRef.current;
+    const isNearBottom = scrollHeight - scrollTop - clientHeight < 150;
+
+    // Only auto-scroll if user is already near bottom
+    if (isNearBottom) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages.length, loading]); // triggers on new message or loading change
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -156,7 +167,7 @@ export default function Chat({ onNew, externalMessages, chatId }: ChatProps) {
           </div>
         </div>
       ) : (
-        <div className="messages">
+        <div className="messages" ref={messagesRef}> {/* CHANGE 4: add ref */}
           {messages.map((m) => (
             <div key={m.id} className={`message ${m.role}`}>
               <div className="messageAvatar">{m.role === "user"? "You" : "AI"}</div>
@@ -190,7 +201,7 @@ export default function Chat({ onNew, externalMessages, chatId }: ChatProps) {
               </div>
             </div>
           )}
-          <div ref={bottomRef} />
+          <div ref={messagesEndRef} /> {/* CHANGE 5: renamed from bottomRef */}
         </div>
       )}
 
