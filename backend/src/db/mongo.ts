@@ -15,15 +15,20 @@ export const connectMongo = async (): Promise<void> => {
       maxPoolSize: 10,
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
+      // Add these:
+      maxIdleTimeMS: 30000,
+      retryWrites: true,
+      retryReads: true,
     });
     
     await client.connect();
-    await client.db('admin').command({ ping: 1 });
-    
     db = client.db('ogstudio');
     chats = db.collection('chats');
     
-    // Indexes: fast user queries + unique content
+    // Handle disconnects
+    client.on('close', () => console.warn('MongoDB connection closed'));
+    client.on('error', (e) => console.error('MongoDB error:', e));
+    
     await chats.createIndex({ userAddress: 1, createdAt: -1 });
     await chats.createIndex({ id: 1 }, { unique: true });
     await chats.createIndex({ chatId: 1 });
@@ -34,6 +39,15 @@ export const connectMongo = async (): Promise<void> => {
     throw e;
   }
 };
+
+// Add this right after export const connectMongo = async ()...
+// This keeps MongoDB alive on hosting platforms that idle
+export const keepAlive = () => {
+  setInterval(() => {
+    if (db) db.command({ ping: 1 }).catch(() => {});
+  }, 300000); // ping every 5 min
+};
+
 
 export const closeMongo = async (): Promise<void> => {
   try {

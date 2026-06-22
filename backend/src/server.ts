@@ -1,3 +1,7 @@
+import dotenv from "dotenv";
+
+dotenv.config();
+
 // server.ts - MUST BE LINE 1
 const _origStringify = JSON.stringify;
 JSON.stringify = function(val: any, replacer?: any, space?: any) {
@@ -7,8 +11,7 @@ JSON.stringify = function(val: any, replacer?: any, space?: any) {
 
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
-import { connectMongo } from "./db/mongo";
+import { connectMongo, keepAlive } from "./db/mongo"; // add keepAlive
 import authRoutes from "./routes/auth";
 import contentRoutes from "./routes/content";
 
@@ -24,8 +27,11 @@ const app = express();
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:3000",
-  "https://0g-studio-ai.netlify.app"
+  "https://0g-studio-ai.netlify.app",
+  "https://0g-nexus-ai.netlify.app",
+  "https://0gstudioai.online" // ADD THIS - this fixes CORS
 ];
+
 
 app.use(
   cors({
@@ -91,6 +97,7 @@ const requestedPort = Number(process.env.PORT || 3001);
 const startServer = async (port: number) => {
   try {
     await connectMongo();
+    keepAlive(); 
     
     const server = app.listen(port, () => {
       console.log(`🚀 Backend running on port ${port}`);
