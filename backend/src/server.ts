@@ -5,17 +5,14 @@ JSON.stringify = function(val: any, replacer?: any, space?: any) {
   return _origStringify(val, safe, space);
 };
 
-
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-
+import { connectMongo } from "./db/mongo";
 import authRoutes from "./routes/auth";
 import contentRoutes from "./routes/content";
 
-
 dotenv.config();
-
 
 const app = express();
 
@@ -33,13 +30,8 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, callback) => {
-      // allow tools like curl / server-to-server
       if (!origin) return callback(null, true);
-
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
+      if (allowedOrigins.includes(origin)) return callback(null, true);
       console.warn("❌ Blocked by CORS:", origin);
       return callback(new Error("CORS Not Allowed"));
     },
@@ -49,18 +41,8 @@ app.use(
   })
 );
 
-/**
- * =========================
- * IMPORTANT: PRE-FLIGHT HANDLER
- * =========================
- */
 app.options("*", cors());
 
-/**
- * =========================
- * GLOBAL HEADERS SAFETY NET
- * =========================
- */
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Credentials", "true");
   res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
@@ -71,12 +53,7 @@ app.use((req, res, next) => {
   next();
 });
 
-/**
- * =========================
- * BODY PARSER
- * =========================
- */
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 /**
  * =========================
@@ -87,6 +64,7 @@ console.log("========== SERVER START ==========");
 console.log("PORT:", process.env.PORT);
 console.log("GROQ KEY LOADED:", !!process.env.GROQ_API_KEY);
 console.log("OG RPC LOADED:", !!process.env.OG_EVM_RPC);
+console.log("MONGO URI LOADED:", !!process.env.MONGO_URI);
 
 /**
  * =========================
@@ -94,12 +72,8 @@ console.log("OG RPC LOADED:", !!process.env.OG_EVM_RPC);
  * =========================
  */
 app.use("/auth", authRoutes);
-app.use("/api/content", contentRoutes); // was "/api"
+app.use("/api/content", contentRoutes);
 
-
-/**
- * HEALTH CHECK
- */
 app.get("/", (req, res) => {
   res.json({
     status: "backend running",
@@ -114,21 +88,28 @@ app.get("/", (req, res) => {
  */
 const requestedPort = Number(process.env.PORT || 3001);
 
-const startServer = (port: number) => {
-  const server = app.listen(port, () => {
-    console.log(`🚀 Backend running on port ${port}`);
-  });
+const startServer = async (port: number) => {
+  try {
+    await connectMongo();
+    
+    const server = app.listen(port, () => {
+      console.log(`🚀 Backend running on port ${port}`);
+    });
 
-  server.on("error", (error: NodeJS.ErrnoException) => {
-    if (error.code === "EADDRINUSE" && port < requestedPort + 10) {
-      console.warn(`⚠️ Port ${port} busy, trying ${port + 1}...`);
-      server.close(() => startServer(port + 1));
-      return;
-    }
+    server.on("error", (error: NodeJS.ErrnoException) => {
+      if (error.code === "EADDRINUSE" && port < requestedPort + 10) {
+        console.warn(`⚠ Port ${port} busy, trying ${port + 1}...`);
+        server.close(() => startServer(port + 1));
+        return;
+      }
+      console.error("❌ Server error:", error);
+      process.exit(1);
+    });
 
-    console.error("❌ Server error:", error);
+  } catch (e: any) {
+    console.error("❌ Startup failed:", e.message);
     process.exit(1);
-  });
+  }
 };
 
 startServer(requestedPort);
@@ -140,8 +121,10 @@ startServer(requestedPort);
  */
 process.on("uncaughtException", (err) => {
   console.error("UNCAUGHT EXCEPTION:", err);
+  process.exit(1);
 });
 
 process.on("unhandledRejection", (reason) => {
   console.error("UNHANDLED REJECTION:", reason);
+  process.exit(1);
 });

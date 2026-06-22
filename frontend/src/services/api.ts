@@ -1,36 +1,35 @@
 import axios from 'axios';
-import { ContentData, ContentType } from '../types';
+import { ContentType } from '../types';
 
-const API = import.meta.env.VITE_BACKEND_URL;
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
-const authHeader = () => ({
-  headers: { Authorization: `Bearer ${localStorage.getItem('jwt')}` }
+const api = axios.create({
+  baseURL: API_URL,
+  headers: { 'Content-Type': 'application/json' }
 });
 
+// Add token to requests
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('jwt'); // Changed from 'token' to 'jwt' to match useAuth
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+// FIX: Add back missing exports
 export const getNonce = (address: string) =>
-  axios.post(`${API}/auth/nonce`, { address });
+  api.post('/auth/nonce', { address });
 
 export const verifySignature = (address: string, signature: string) =>
-  axios.post(`${API}/auth/verify`, { address, signature });
+  api.post('/auth/verify', { address, signature });
 
-// Changed: added chatId param
-export const generateContent = (prompt: string, type: ContentType, chatId: string) =>
-  axios.post<ContentData & { hash: string | null; txHash: string | null; storage: string; status: string }>(
-    `${API}/api/content/generate`, // <- FIXED
-    { prompt, type, chatId },
-    authHeader()
-  );
+export const generateContent = (
+  prompt: string,
+  type: ContentType,
+  chatId: string
+) => api.post('/api/content/generate', { prompt, type, chatId });
 
-export const getLibrary = () =>
-  axios.get<(ContentData & { hash: string | null; txHash: string | null; storage: string })[]>(
-    `${API}/api/content/library`, // <- FIXED
-    authHeader()
-  );
+export const getLibrary = (params: { limit?: number; offset?: number } = {}) =>
+  api.get('/api/content/library', { params }).then(r => r.data);
 
-
-export const getContentStatus = (id: string) =>
-  axios.get<ContentData & { hash: string | null; txHash: string | null; storage: string }>(
-    `${API}/api/content/status/${id}`,
-    authHeader()
-  );
-
+export const getContentStatus = (contentId: string) =>
+  api.get(`/api/content/generate/status/${contentId}`).then(r => r.data);

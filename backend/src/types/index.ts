@@ -16,9 +16,9 @@ export interface ContentData {
   wordCount: number;
   qualityScore: number;
   createdAt: number;
-  hash?: string | null; // rootHash for download
+  updatedAt?: number; // Add this
+  hash?: string | null; // rootHash for 0G download
   txHash?: string | null; // transaction hash for explorer
   storage?: '0G_GALILEO' | 'PENDING_0G' | 'FAILED';
   status?: string;
 }
-

@@ -1,92 +1,80 @@
 import { useEffect, useRef } from 'react';
 import { ContentData } from '../types';
-
-interface PollingConfig {
-  initialInterval?: number;
-  maxInterval?: number;
-  backoffMultiplier?: number;
-}
+import { getContentStatus } from '../services/api';
 
 export const useTxHashPoller = (
-  messages: ContentData[],
-  onUpdate: (contentId: string, txHash: string) => void,
-  config: PollingConfig = {}
+  items: ContentData[],
+  onUpdate: (id: string, data: Partial<ContentData>) => void
 ) => {
-  const {
-    initialInterval = 3000,      // Start at 3 seconds
-    maxInterval = 30000,         // Max 30 seconds
-    backoffMultiplier = 1.5,
-  } = config;
-
-  const intervalsRef = useRef<Map<string, { timerId: number; currentInterval: number }>>(
-    new Map()
-  );
+  const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const attemptsRef = useRef<Map<string, number>>(new Map());
+  const startTimesRef = useRef<Map<string, number>>(new Map());
+  const MAX_POLL_DURATION = 5 * 60 * 1000; // 5 min
 
   useEffect(() => {
-    // Find all pending messages
-    const pendingMessages = messages.filter(
-      (m) => m.storage === 'PENDING_0G' && !m.txHash
-    );
+    const pending = items.filter(i => i.storage === 'PENDING_0G' && !i.txHash);
 
-    pendingMessages.forEach((msg) => {
-      // Skip if already polling this message
-      if (intervalsRef.current.has(msg.id)) return;
+    pending.forEach(item => {
+      if (timersRef.current.has(item.id)) return;
 
-      let currentInterval = initialInterval;
+      const startTime = startTimesRef.current.get(item.id) || Date.now();
+      startTimesRef.current.set(item.id, startTime);
 
       const poll = async () => {
-        try {
-          const response = await fetch(`/api/content/generate/status/${msg.id}`);
-          const data = await response.json();
+        const attempts = attemptsRef.current.get(item.id) || 0;
 
+        // Stop after 5 min
+        if (Date.now() - startTime > MAX_POLL_DURATION) {
+          onUpdate(item.id, { storage: 'FAILED' });
+          timersRef.current.delete(item.id);
+          attemptsRef.current.delete(item.id);
+          startTimesRef.current.delete(item.id);
+          return;
+        }
+
+        try {
+          const data = await getContentStatus(item.id);
+          
           if (data.txHash && data.storage === '0G_GALILEO') {
-            // Found the txHash! Notify parent and stop polling
-            onUpdate(msg.id, data.txHash);
-            
-            const timer = intervalsRef.current.get(msg.id);
-            if (timer) {
-              clearInterval(timer.timerId);
-              intervalsRef.current.delete(msg.id);
-            }
+            onUpdate(item.id, {
+              txHash: data.txHash,
+              hash: data.rootHash,
+              storage: '0G_GALILEO',
+              updatedAt: Date.now()
+            });
+            timersRef.current.delete(item.id);
+            attemptsRef.current.delete(item.id);
+            startTimesRef.current.delete(item.id);
           } else {
-            // Still pending, increase interval with backoff
-            currentInterval = Math.min(
-              currentInterval * backoffMultiplier,
-              maxInterval
-            );
+            attemptsRef.current.set(item.id, attempts + 1);
+            const delay = Math.min(3000 + attempts * 500, 15000);
+            timersRef.current.set(item.id, setTimeout(poll, delay));
           }
-        } catch (err) {
-          console.error(`Failed to poll status for ${msg.id}:`, err);
+        } catch (e) {
+          attemptsRef.current.set(item.id, attempts + 1);
+          timersRef.current.set(item.id, setTimeout(poll, 5000));
         }
       };
 
-      // Initial immediate poll
       poll();
-
-      // Set up recurring poll with backoff
-      const timerId = window.setInterval(poll, currentInterval) as unknown as number;
-      intervalsRef.current.set(msg.id, { timerId, currentInterval });
     });
 
-    // Cleanup function
-    return () => {
-      // Clear intervals for messages that are no longer pending
-      const pendingIds = new Set(pendingMessages.map((m) => m.id));
-      
-      intervalsRef.current.forEach((timer, contentId) => {
-        if (!pendingIds.has(contentId)) {
-          clearInterval(timer.timerId);
-          intervalsRef.current.delete(contentId);
-        }
-      });
-    };
-  }, [messages, onUpdate, initialInterval, maxInterval, backoffMultiplier]);
+    // Cleanup removed items
+    const pendingIds = new Set(pending.map(i => i.id));
+    timersRef.current.forEach((timer, id) => {
+      if (!pendingIds.has(id)) {
+        clearTimeout(timer);
+        timersRef.current.delete(id);
+        attemptsRef.current.delete(id);
+        startTimesRef.current.delete(id);
+      }
+    });
 
-  // Cleanup on unmount
-  useEffect(() => {
     return () => {
-      intervalsRef.current.forEach(({ timerId }) => clearInterval(timerId));
-      intervalsRef.current.clear();
+      timersRef.current.forEach(clearTimeout);
+      timersRef.current.clear();
+      attemptsRef.current.clear();
+      startTimesRef.current.clear();
     };
-  }, []);
+  }, [items, onUpdate]);
 };

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAuth } from "./hooks/useAuth";
 import Chat from "./components/Chat";
@@ -6,30 +6,51 @@ import Sidebar from "./components/SidebarHistory";
 import { ContentData } from "./types";
 import { Menu } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
-import "./styles/app.css";
 import { getLibrary } from "./services/api";
+import { useTxHashPoller } from "./hooks/useTxHashPoller";
+import "./styles/app.css";
 
 export default function App() {
   const { token, address, isConnected } = useAuth();
   const [history, setHistory] = useState<ContentData[]>([]);
   const [activeChatId, setActiveChatId] = useState<string>(() => uuidv4());
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loading, setLoading] = useState(false);
 
-  // Load history on login
+  // Load history with pagination
   useEffect(() => {
-    if (token) {
-      getLibrary()
-       .then(({ data }) => {
-          setHistory(data || []);
-        })
-       .catch((err) => console.error("Library load failed:", err));
-    } else {
+    if (!token) {
       setHistory([]);
+      setPage(0);
+      setHasMore(true);
+      return;
     }
-  }, [token]);
+    
+    setLoading(true);
+    getLibrary({ limit: 20, offset: page * 20 })
+      .then(({ data, hasMore }) => {
+        setHistory(p => page === 0 ? data : [...p, ...data]);
+        setHasMore(hasMore);
+      })
+      .catch((err) => console.error("Library load failed:", err))
+      .finally(() => setLoading(false));
+  }, [token, page]);
+
+  // FIX: Match useTxHashPoller signature - (id, data: Partial<ContentData>)
+  const handleTxHashUpdate = useCallback((id: string, update: Partial<ContentData>) => {
+    setHistory(p => p.map(h => 
+      h.id === id 
+        ? { ...h, ...update, updatedAt: Date.now() } 
+        : h
+    ));
+  }, []);
+
+  useTxHashPoller(history, handleTxHashUpdate);
 
   const addHistory = (data: ContentData) => {
-    setHistory((p) => [...p, data]);
+    setHistory((p) => [data, ...p]); // Add to top
     setActiveChatId(data.chatId);
   };
 
@@ -41,6 +62,12 @@ export default function App() {
   const handleNewChat = () => {
     setActiveChatId(uuidv4());
     setSidebarOpen(false);
+  };
+
+  const loadMore = () => {
+    if (!loading && hasMore) {
+      setPage(p => p + 1);
+    }
   };
 
   const activeMessages = history.filter((h) => h.chatId === activeChatId);
@@ -81,6 +108,9 @@ export default function App() {
         onNewChat={handleNewChat}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        onLoadMore={loadMore}
+        hasMore={hasMore}
+        loading={loading}
       />
 
       <main className="main">
@@ -109,8 +139,6 @@ export default function App() {
           chatId={activeChatId}
         />
       </main>
-
     </div>
-    
   );
 }

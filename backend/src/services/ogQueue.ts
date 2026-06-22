@@ -1,5 +1,6 @@
-import { uploadTo0G, saveUserHash, savePendingEntry, savePendingData } from './ogStorage';
+import { uploadTo0G } from './ogStorage';
 import { ContentData } from '../types';
+import { chats } from '../db/mongo';
 
 interface QueueItem extends ContentData {
   retries: number;
@@ -11,11 +12,6 @@ const MAX_RETRIES = 3;
 
 export const addTo0GQueue = (data: ContentData) => {
   console.log(`[0G QUEUE] Added item ${data.id} to queue`);
-
-  // Save pending state so UI can show it immediately
-  savePendingEntry(data.userAddress, data.id);
-  savePendingData(data.userAddress, data);
-
   queue.push({...data, retries: 0 });
   if (!isProcessing) processQueue();
 };
@@ -31,27 +27,44 @@ const processQueue = async () => {
       console.log(`[0G QUEUE] Uploading ${item.id}, attempt ${item.retries + 1}`);
       const { rootHash, txHash } = await uploadTo0G(item);
 
-      if (!rootHash) {
-        throw new Error('uploadTo0G returned empty rootHash');
+      if (!rootHash) throw new Error('uploadTo0G returned empty rootHash');
+
+      // CRITICAL: Update MongoDB with txHash + rootHash
+      const result = await chats.updateOne(
+        { id: item.id },
+        {
+          $set: {
+            hash: rootHash,
+            txHash: txHash || null,
+            storage: '0G_GALILEO',
+            updatedAt: Date.now()
+          }
+        }
+      );
+
+      if (result.matchedCount === 0) {
+        console.error(`[0G QUEUE] WARNING: No Mongo doc found for ${item.id}`);
       }
 
-      await saveUserHash(item.userAddress, rootHash, txHash);
-
       console.log(`[0G QUEUE] SUCCESS: ${item.id} -> tx: ${txHash} root: ${rootHash}`);
-      queue.shift(); // Only remove on success
+      queue.shift();
 
     } catch (err: any) {
       console.error(`[0G QUEUE] FAILED ${item.id}:`, err.message);
       item.retries++;
-
-      queue.shift(); // Remove failed attempt
+      queue.shift();
 
       if (item.retries >= MAX_RETRIES) {
         console.error(`[0G QUEUE] DROPPED ${item.id} after ${MAX_RETRIES} retries`);
+        // Mark as failed in Mongo
+        await chats.updateOne(
+          { id: item.id },
+          { $set: { storage: 'FAILED', updatedAt: Date.now() } }
+        ).catch(() => {});
       } else {
         console.log(`[0G QUEUE] RETRY ${item.id} -> ${item.retries}`);
-        queue.push(item); // Re-queue at end
-        await new Promise(r => setTimeout(r, 5000 * item.retries)); // Exponential backoff
+        queue.push(item);
+        await new Promise(r => setTimeout(r, 5000 * item.retries));
       }
     }
   }

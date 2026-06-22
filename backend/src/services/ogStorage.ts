@@ -8,11 +8,11 @@ let ZgFile: any, Indexer: any;
 
 const loadSDK = async () => {
   if (!ZgFile) {
-    console.log(' Loading 0G SDK...');
+    console.log('Loading 0G SDK...');
     const sdk = await import('@0gfoundation/0g-storage-ts-sdk');
     ZgFile = sdk.ZgFile;
     Indexer = sdk.Indexer;
-    console.log(' SDK loaded');
+    console.log('0G SDK loaded');
   }
 };
 
@@ -47,7 +47,6 @@ const getIndexer = async () => {
   return new Indexer(getIndexerRpc());
 };
 
-// Use /tmp for Hostinger + local. It's ephemeral but fine for uploads.
 const getTmpPath = (name: string) => path.join(os.tmpdir(), name);
 
 export const uploadTo0G = async (data: ContentData): Promise<{ rootHash: string; txHash: string }> => {
@@ -61,18 +60,15 @@ export const uploadTo0G = async (data: ContentData): Promise<{ rootHash: string;
   try {
     file = await ZgFile.fromFilePath(tmpPath);
 
-    // CRITICAL: SDK returns [result, error] tuple. Don't remove this.
     const [tree, treeErr] = await file.merkleTree();
     if (treeErr!== null) throw new Error(`Merkle tree error: ${treeErr}`);
 
     const indexer = await getIndexer();
     const signer = getSigner();
 
-    // CRITICAL: SDK returns [tx, uploadErr] tuple
     const [tx, uploadErr] = await indexer.upload(file, getRpcUrl(), signer);
     if (uploadErr!== null) throw new Error(`Upload error: ${uploadErr}`);
 
-    // SDK returns different shapes. Handle all.
     const rootHash =
       tx?.rootHash ||
       tx?.data?.rootHash ||
@@ -86,12 +82,12 @@ export const uploadTo0G = async (data: ContentData): Promise<{ rootHash: string;
       null;
 
     if (!rootHash) {
-      console.error(" FULL TX RESPONSE:", JSON.stringify(tx, (k, v) => typeof v === 'bigint'? v.toString() : v));
+      console.error("FULL TX RESPONSE:", JSON.stringify(tx, (k, v) => typeof v === 'bigint'? v.toString() : v));
       throw new Error("Missing rootHash from 0G response");
     }
 
-    console.log(` TX: https://chainscan-galileo.0g.ai/tx/${txHash}`);
-    console.log(` File: https://storagescan-galileo.0g.ai/#/data/${rootHash}`);
+    console.log(`TX: https://chainscan-galileo.0g.ai/tx/${txHash}`);
+    console.log(`File: https://storagescan-galileo.0g.ai/#/data/${rootHash}`);
 
     return { rootHash, txHash: txHash || '' };
 
@@ -120,88 +116,5 @@ export const downloadFrom0G = async (rootHash: string): Promise<ContentData> => 
   }
 };
 
-// Manifest storage - works on Hostinger /tmp. Data lost on restart but 0G is source of truth.
-const getManifestPath = () => path.join(os.tmpdir(), '0g_manifests.json');
-
-type ManifestEntry = { rootHash: string; txHash?: string | null };
-
-const readManifests = (): Record<string, ManifestEntry[]> => {
-  try {
-    const rawAny = JSON.parse(fs.readFileSync(getManifestPath(), 'utf-8')) as Record<string, any[]>;
-    const out: Record<string, ManifestEntry[]> = {};
-    for (const k of Object.keys(rawAny)) {
-      const arr = (rawAny[k] || []).map((e: any) => {
-        if (!e) return null;
-        if (typeof e === 'string') return { rootHash: e, txHash: null };
-        if (typeof e === 'object' && e.rootHash) return { rootHash: e.rootHash, txHash: e.txHash?? null };
-        return null;
-      }).filter(Boolean) as ManifestEntry[];
-      if (arr.length) out[k] = arr;
-    }
-    return out;
-  } catch {
-    return {};
-  }
-};
-
-const writeManifests = (data: Record<string, ManifestEntry[]>) => {
-  fs.writeFileSync(getManifestPath(), JSON.stringify(data));
-};
-
-export const savePendingEntry = async (userAddress: string, pendingId: string): Promise<void> => {
-  const manifests = readManifests();
-  const addr = userAddress.toLowerCase(); // <- was missing
-  if (!manifests[addr]) manifests[addr] = [];
-  const pendingRoot = `PENDING:${pendingId}`;
-  if (!manifests[addr].find(x => x.rootHash === pendingRoot)) {
-    manifests[addr].push({ rootHash: pendingRoot, txHash: null });
-    writeManifests(manifests);
-  }
-};
-
-export const saveUserHash = async (userAddress: string, rootHash: string, txHash?: string | null): Promise<void> => {
-  if (!rootHash) {
-    console.warn('saveUserHash called with empty rootHash - ignoring');
-    return;
-  }
-
-  const manifests = readManifests();
-  const addr = userAddress.toLowerCase(); // <- was missing
-  if (!manifests[addr]) manifests[addr] = [];
-
-  // Replace earliest pending with actual rootHash
-  const pendingIndex = manifests[addr].findIndex(x => typeof x.rootHash === 'string' && x.rootHash.startsWith('PENDING:'));
-  if (pendingIndex!== -1) {
-    manifests[addr][pendingIndex] = { rootHash, txHash: txHash?? null };
-  } else if (!manifests[addr].find(x => x.rootHash === rootHash)) {
-    manifests[addr].push({ rootHash, txHash: txHash?? null });
-  }
-
-  writeManifests(manifests);
-  
-};
-
-export const savePendingData = async (userAddress: string, data: any): Promise<void> => {
-  try {
-    const pendingPath = path.join(os.tmpdir(), `0g_pending_${userAddress.toLowerCase()}_${data.id}.json`);
-    fs.writeFileSync(pendingPath, JSON.stringify(data, null, 2));
-  } catch (e) {
-    console.warn(' savePendingData failed', e);
-  }
-};
-
-export const readPendingData = async (userAddress: string, pendingId: string): Promise<any | null> => {
-  try {
-    const pendingPath = path.join(os.tmpdir(), `0g_pending_${userAddress.toLowerCase()}_${pendingId}.json`);
-    if (!fs.existsSync(pendingPath)) return null;
-    const buf = fs.readFileSync(pendingPath, 'utf-8');
-    return JSON.parse(buf);
-  } catch (e) {
-    return null;
-  }
-};
-
-export const getUserHashes = async (userAddress: string): Promise<ManifestEntry[]> => {
-  const manifests = readManifests();
-  return manifests[userAddress.toLowerCase()] || [];
-};
+// REMOVED: All manifest, savePendingEntry, saveUserHash, savePendingData, readPendingData, getUserHashes
+// MongoDB handles all of this now
