@@ -178,6 +178,7 @@ export const saveUserHash = async (userAddress: string, rootHash: string, txHash
   }
 
   writeManifests(manifests);
+  
 };
 
 export const savePendingData = async (userAddress: string, data: any): Promise<void> => {
