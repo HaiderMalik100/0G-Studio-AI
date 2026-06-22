@@ -11,7 +11,7 @@ import { useTxHashPoller } from "./hooks/useTxHashPoller";
 import "./styles/app.css";
 
 export default function App() {
-  const { token, address, isConnected } = useAuth();
+  const { token, isConnected } = useAuth();
   const [history, setHistory] = useState<ContentData[]>([]);
   const [activeChatId, setActiveChatId] = useState<string>(() => uuidv4());
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -78,7 +78,7 @@ export default function App() {
         <div className="authBgGrid"></div>
         <div className="authCard">
           <div className="authBadge">0G Zero Cup Hackathon</div>
-          <h1>0G Studio AI</h1>
+          <h1>Nexus AI</h1>
           <p>
             Create tweets, blogs, LinkedIn posts & marketing copy.
             Every generation is stored permanently on 0G decentralized storage.
@@ -122,13 +122,13 @@ export default function App() {
             >
               <Menu size={16} />
             </button>
-            <div className="brand">0G Studio AI</div>
+            <div className="brand">Nexus AI</div>
           </div>
 
           <div className="topbarRight">
-            <span className="wallet">
+            {/* <span className="wallet">
               {address?.slice(0, 6)}...{address?.slice(-4)}
-            </span>
+            </span> */}
             <ConnectButton />
           </div>
         </header>

@@ -142,7 +142,7 @@ export default function Chat({ onNew, externalMessages, chatId }: ChatProps) {
             <Sparkles size={32} />
           </div>
           <h1>Build AI Content in Seconds</h1>
-          <p>Generate tweets, blogs, LinkedIn posts & marketing copy instantly on 0G</p>
+          <p>Generate tweets, blogs, LinkedIn posts & marketing copy instantly with Nexus AI</p>
           <div className="heroTags">
             {typeOptions.map((opt) => (
               <button

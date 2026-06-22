@@ -17,7 +17,7 @@ const zeroG = {
 
 
 const config = getDefaultConfig({
-  appName: '0G Creator',
+  appName: 'Nexus AI',
   projectId: import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID,
   chains: [zeroG],
 });
