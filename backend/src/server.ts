@@ -24,14 +24,20 @@ const app = express();
  * CORS CONFIG (PRODUCTION SAFE)
  * =========================
  */
+/**
+ * CORS CONFIG
+ */
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:3000",
-  
-  "https://0g-nexus-ai.netlify.app/",
-  "https://www.0gstudioai.online" // ADD THIS - this fixes CORS
+  "https://0g-nexus-ai.netlify.app", // ✅ This matches your frontend
 ];
 
+// // Handle preflight FIRST
+// app.options("*", cors({
+//   origin: allowedOrigins,
+//   credentials: true,
+// }));
 
 app.use(
   cors({
@@ -47,17 +53,18 @@ app.use(
   })
 );
 
-app.options("*", cors());
 
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Credentials", "true");
-  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-  next();
-});
+// app.options("*", cors());
+
+// app.use((req, res, next) => {
+//   res.header("Access-Control-Allow-Credentials", "true");
+//   res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+//   res.header(
+//     "Access-Control-Allow-Headers",
+//     "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+//   );
+//   next();
+// });
 
 app.use(express.json({ limit: '10mb' }));
 
