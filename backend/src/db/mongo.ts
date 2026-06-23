@@ -7,8 +7,6 @@ let db: Db;
 export let chats: Collection<ContentData & { _id?: any; updatedAt?: number }>;
 
 export const connectMongo = async (): Promise<void> => {
-  if (db) return; // prevent reconnect
-  
   const uri = process.env.MONGO_URI;
   if (!uri) throw new Error('MONGO_URI missing in .env');
   
@@ -17,6 +15,7 @@ export const connectMongo = async (): Promise<void> => {
       maxPoolSize: 10,
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
+      // Add these:
       maxIdleTimeMS: 30000,
       retryWrites: true,
       retryReads: true,
@@ -26,6 +25,7 @@ export const connectMongo = async (): Promise<void> => {
     db = client.db('ogstudio');
     chats = db.collection('chats');
     
+    // Handle disconnects
     client.on('close', () => console.warn('MongoDB connection closed'));
     client.on('error', (e) => console.error('MongoDB error:', e));
     
@@ -40,11 +40,14 @@ export const connectMongo = async (): Promise<void> => {
   }
 };
 
+// Add this right after export const connectMongo = async ()...
+// This keeps MongoDB alive on hosting platforms that idle
 export const keepAlive = () => {
   setInterval(() => {
     if (db) db.command({ ping: 1 }).catch(() => {});
-  }, 300000);
+  }, 300000); // ping every 5 min
 };
+
 
 export const closeMongo = async (): Promise<void> => {
   try {
@@ -55,8 +58,6 @@ export const closeMongo = async (): Promise<void> => {
   }
 };
 
-// Only for local dev. Hostinger handles shutdown.
-if (process.env.NODE_ENV !== 'production') {
-  process.on('SIGINT', closeMongo);
-}
-// REMOVE THIS LINE: process.on('SIGTERM', closeMongo);
+// Graceful shutdown
+process.on('SIGINT', closeMongo);
+process.on('SIGTERM', closeMongo);
