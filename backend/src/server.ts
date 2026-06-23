@@ -28,7 +28,7 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:3000",
   
-  "https://0g-nexus-ai.netlify.app",
+  "https://0g-nexus-ai.netlify.app/",
   "https://www.0gstudioai.online" // ADD THIS - this fixes CORS
 ];
 
