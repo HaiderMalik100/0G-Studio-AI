@@ -24,12 +24,18 @@ const processQueue = async () => {
     const item = queue[0];
 
     try {
+      // Check Mongo is ready
+      if (!chats) {
+        console.error(`[0G QUEUE] Mongo not ready, requeue ${item.id}`);
+        await new Promise(r => setTimeout(r, 2000));
+        continue; // Don't shift, retry
+      }
+
       console.log(`[0G QUEUE] Uploading ${item.id}, attempt ${item.retries + 1}`);
       const { rootHash, txHash } = await uploadTo0G(item);
 
       if (!rootHash) throw new Error('uploadTo0G returned empty rootHash');
 
-      // CRITICAL: Update MongoDB with txHash + rootHash
       const result = await chats.updateOne(
         { id: item.id },
         {
@@ -56,11 +62,12 @@ const processQueue = async () => {
 
       if (item.retries >= MAX_RETRIES) {
         console.error(`[0G QUEUE] DROPPED ${item.id} after ${MAX_RETRIES} retries`);
-        // Mark as failed in Mongo
-        await chats.updateOne(
-          { id: item.id },
-          { $set: { storage: 'FAILED', updatedAt: Date.now() } }
-        ).catch(() => {});
+        if (chats) { // Check chats exists before using
+          await chats.updateOne(
+            { id: item.id },
+            { $set: { storage: 'FAILED', updatedAt: Date.now() } }
+          ).catch(() => {});
+        }
       } else {
         console.log(`[0G QUEUE] RETRY ${item.id} -> ${item.retries}`);
         queue.push(item);
