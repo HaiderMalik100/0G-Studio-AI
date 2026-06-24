@@ -438,30 +438,230 @@
 }
 
 
-/* ========== RESPONSIVE ========== */
+/* ========== MOBILE OVERRIDES ONLY ========== */
 @media (max-width: 900px) {
+  .chat {
+    height: 100dvh;
+  }
+
   .messages {
-    padding: 24px 16px;
+    padding: 16px 12px;
+    gap: 16px;
   }
-  
+
+  .message {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+    align-items: flex-start;
+    margin: 0;
+  }
+
+  /* USER MESSAGE - Right side */
+  .message.user {
+    flex-direction: row-reverse;
+    justify-content: flex-start;
+  }
+
+  .message.user .messageContent {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    max-width: 82%;
+  }
+
+  .message.user .messageText {
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+    border-radius: 16px 16px 4px 16px;
+    padding: 12px 16px;
+    color: white;
+    font-size: 15px;
+    line-height: 1.5;
+    word-break: break-word;
+  }
+
+  /* AI MESSAGE - Left side */
+  .message.ai {
+    justify-content: flex-start;
+  }
+
+  .message.ai .messageContent {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    max-width: 82%;
+  }
+
+  .message.ai .messageText {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: 16px 16px 16px 4px;
+    padding: 12px 16px;
+    color: var(--text-primary);
+    font-size: 15px;
+    line-height: 1.6;
+    word-break: break-word;
+  }
+
+  .messageAvatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    flex-shrink: 0;
+    margin-top: 2px;
+    font-size: 10px;
+    font-weight: 700;
+  }
+
+  .message.ai .messageAvatar {
+    background: rgba(99, 102, 241, 0.15);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    color: #818cf8;
+  }
+
+  .message.user .messageAvatar {
+    background: rgba(148, 163, 184, 0.15);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-muted);
+  }
+
+  /* Markdown inside AI bubble */
+  .message.ai .messageText.markdown {
+    white-space: normal;
+  }
+
+  .message.ai .messageText.markdown p {
+    margin: 0 0 12px 0;
+    color: var(--text-secondary);
+  }
+
+  .message.ai .messageText.markdown p:last-child {
+    margin-bottom: 0;
+  }
+
+  .message.ai .messageText.markdown strong {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  /* Actions below AI bubble */
+  .messageActions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+  }
+
+  .copyBtn,
+  .hashLink {
+    min-height: 32px;
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .copyBtn,
+  .hashLink {
+    min-height: 32px;
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: 8px;
+  }
+
+  /* Input area */
   .inputContainer {
-    padding: 12px 16px 16px;
+    padding: 12px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
   }
-  
+
   .typeSelector {
     width: 100%;
     overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    padding: 3px;
+    gap: 4px;
   }
-  
+
+  .typeSelector::-webkit-scrollbar {
+    display: none;
+  }
+
+  .typeBtn {
+    min-height: 40px;
+    white-space: nowrap;
+    padding: 8px 14px;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+
   .inputWrapper {
     flex-direction: column;
     align-items: stretch;
+    gap: 10px;
+    padding: 10px;
   }
-  
+
+  .inputWrapper textarea {
+    min-height: 44px;
+    max-height: 120px;
+    font-size: 16px;
+    padding: 8px 4px;
+  }
+
   .sendBtn {
     width: 100%;
+    min-height: 48px;
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  .hero {
+    padding: 24px 16px;
+  }
+
+  .heroIcon {
+    width: 56px;
+    height: 56px;
+  }
+
+  .heroTags {
+    gap: 6px;
+  }
+
+  .heroTag {
+    min-height: 40px;
+    padding: 8px 14px;
   }
 }
+
+@media (max-width: 600px) {
+  .messages {
+    padding: 12px 10px;
+    gap: 16px;
+  }
+
+  .hero h1 {
+    font-size: 28px;
+  }
+  
+  .hero p {
+    font-size: 14px;
+  }
+
+  .messageText {
+    font-size: 15px;
+  }
+
+  .markdown h1 { font-size: 19px; }
+  .markdown h2 { font-size: 17px; }
+  .markdown h3 { font-size: 16px; }
+}
+
 
 @media (max-width: 600px) {
   .hero h1 {
@@ -472,13 +672,31 @@
     font-size: 14px;
   }
   
-  .message {
-    gap: 12px;
-  }
-  
   .messageAvatar {
     width: 28px;
     height: 28px;
     font-size: 10px;
+    border-radius: 8px;
+  }
+
+  .markdown h1 {
+    font-size: 20px;
+  }
+
+  .message {
+    gap: 12px;
+  }
+
+  .markdown h2 {
+    font-size: 17px;
+  }
+
+  .markdown {
+    font-size: 15px;
   }
 }
+
+
+
+
+

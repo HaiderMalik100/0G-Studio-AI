@@ -1,5 +1,6 @@
 import { ContentData } from "../types";
 import { Plus, X, Loader2, ExternalLink, Clock, CloudOff } from "lucide-react";
+import "../styles/app.css";
 
 export default function Sidebar({
   items,

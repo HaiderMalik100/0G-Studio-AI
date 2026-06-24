@@ -117,21 +117,29 @@ const activeMessages = history
 
       <main className="main">
         <header className="topbar">
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div className="topbarLeft">
             <button
               className="mobileMenuBtn"
               onClick={() => setSidebarOpen(true)}
+              aria-label="Open history"
             >
-              <Menu size={16} />
+              <Menu size={20} />
             </button>
             <div className="brand">Nexus AI</div>
           </div>
 
           <div className="topbarRight">
-            {/* <span className="wallet">
-              {address?.slice(0, 6)}...{address?.slice(-4)}
-            </span> */}
-            <ConnectButton />
+            <ConnectButton
+              accountStatus={{
+                smallScreen: 'avatar',
+                largeScreen: 'full'
+              }}
+              chainStatus={{
+                smallScreen: 'none',
+                largeScreen: 'full'
+              }}
+              showBalance={false}
+            />
           </div>
         </header>
 
