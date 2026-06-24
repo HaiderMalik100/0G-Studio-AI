@@ -121,17 +121,17 @@ const startServer = async (port: number) => {
 
 startServer(requestedPort);
 
-// /**
-//  * =========================
-//  * ERROR HANDLERS
-//  * =========================
-//  */
-// process.on("uncaughtException", (err) => {
-//   console.error("UNCAUGHT EXCEPTION:", err);
-//   process.exit(1);
-// });
+/**
+ * =========================
+ * ERROR HANDLERS
+ * =========================
+ */
+process.on("uncaughtException", (err) => {
+  console.error("UNCAUGHT EXCEPTION:", err);
+  process.exit(1);
+});
 
-// process.on("unhandledRejection", (reason) => {
-//   console.error("UNHANDLED REJECTION:", reason);
-//   process.exit(1);
-// });
+process.on("unhandledRejection", (reason) => {
+  console.error("UNHANDLED REJECTION:", reason);
+  process.exit(1);
+});
